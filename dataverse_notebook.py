@@ -90,16 +90,73 @@ best_model_name = max(results, key=results.get)
 best_model = models[best_model_name]
 print(f"\n🏆 Best Model: {best_model_name} ({results[best_model_name]*100:.2f}% accuracy)")
 
+
+
+
+
+
 # ==========================================
 # 8️⃣ Predict on Submission Data
 # ==========================================
-submission_df = pd.read_csv("submission.csv")
-ids = submission_df['sha256']
-X_submission = submission_df.iloc[:, 1:].values
 
+# 🚨 1. UPDATE THIS FILENAME
+# This must be the CSV file that has the 52 features for testing.
+TEST_FEATURES_FILE = "test.csv" 
+
+# 🚨 2. UPDATE THIS FILENAME
+# This is your sample submission file.
+SUBMISSION_FILE = "submission.csv"
+
+print(f"--- 🚀 Starting Prediction (Section 8) ---")
+
+try:
+    # 3. Load the ACTUAL test data (which has the 52 features)
+    test_features_df = pd.read_csv(TEST_FEATURES_FILE)
+    print(f"Successfully loaded {TEST_FEATURES_FILE}.")
+    print(f"Shape of test_features_df: {test_features_df.shape}")
+    print("Columns:", test_features_df.columns.to_list())
+
+    # 4. Load the sample submission file (which has the IDs in the correct order)
+    submission_df = pd.read_csv(SUBMISSION_FILE)
+    ids = submission_df['sha256']
+    print(f"Successfully loaded {SUBMISSION_FILE}. Ready to predict for {len(ids)} IDs.")
+
+except FileNotFoundError as e:
+    print(f"\n🚨 FILE NOT FOUND ERROR: {e}")
+    print(f"Please check your filenames in Section 8.")
+    print(f"TEST_FEATURES_FILE = '{TEST_FEATURES_FILE}'")
+    print(f"SUBMISSION_FILE = '{SUBMISSION_FILE}'")
+    exit() # Stop the script
+
+# 5. Align the features with the submission IDs using a merge.
+# This ensures your rows are in the correct order.
+merged_df = pd.merge(submission_df[['sha256']], test_features_df, on='sha256', how='left')
+print(f"Shape after merging: {merged_df.shape}")
+
+# 6. Create X_submission from the merged data.
+# This slicing (:, 1:) assumes 'sha256' is the first column.
+X_submission = merged_df.iloc[:, 1:].values
+print(f"Shape of final X_submission array (to be imputed): {X_submission.shape}")
+
+# 7. Check for the error condition BEFORE it happens
+if X_submission.shape[1] != 52:
+    print(f"\n🚨 SHAPE MISMATCH! 🚨")
+    print(f"The imputer expects 52 features, but your X_submission has {X_submission.shape[1]}.")
+    print("This almost always means the file '{TEST_FEATURES_FILE}' does not contain the 52 features.")
+    print("Please double-check your file and your filenames.")
+    exit() # Stop the script
+
+# ==========================================
+# The rest of the code is the same
+# ==========================================
+
+print("Imputing missing values...")
 X_submission = imputer.transform(X_submission)
+
+print("Scaling data...")
 X_submission = sc.transform(X_submission)
 
+print(f"Predicting with best model: {best_model_name}...")
 predictions = best_model.predict(X_submission)
 
 sample_submission = pd.DataFrame({
@@ -108,14 +165,20 @@ sample_submission = pd.DataFrame({
 })
 
 sample_submission.to_csv("ID.csv", index=False)
-print("\n💾 Submission file 'ID.csv' saved using best model:", best_model_name)
+print("\n✅💾 Submission file 'ID.csv' saved using best model:", best_model_name)
 
 # ==========================================
 # 9️⃣ Optional: Visualize Accuracy Comparison
 # ==========================================
 plt.figure(figsize=(7, 5))
-plt.bar(results.keys(), [v*100 for v in results.values()], color=['skyblue', 'lightgreen', 'orange'])
+model_colors = ['skyblue', 'lightgreen', 'orange']
+plt.bar(results.keys(), 
+        [v*100 for v in results.values()], 
+        color=model_colors[:len(results)])
 plt.title("Model Accuracy Comparison")
 plt.ylabel("Accuracy (%)")
 plt.xticks(rotation=15)
 plt.show()
+
+
+
